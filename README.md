@@ -73,13 +73,6 @@ Run ppod.py with custom parameters like:
 ```bash
   python ppod.py --Option=FXD --Rate=80 --Max_train_steps=1e6
 ```
-## Running Tests
-
-To run tests, run the following command
-
-```bash
-  npm run test
-```
 
 
 ## Acknowledgements
