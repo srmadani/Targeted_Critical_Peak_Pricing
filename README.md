@@ -8,10 +8,6 @@ This repository contains the implementation of the research conducted in our wor
 
 ## Repository Structure
 
-To run this project, you will need to add the following environment variables to your .env file
-
-`API_KEY` 
-
 `ppod.py`: Implementation of Proximal Policy Optimization with Discrete actions (PPOD).
 
 `sacd.py`: Implementation of Soft Actor Critic with Discrete actions (SACD).
