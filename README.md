@@ -45,8 +45,8 @@ This repository contains the implementation of the research conducted in our wor
 
 
 ```bash
-  git clone [https://github.com/srmadani/Targeted_Critical_Peak_Pricing.git]
-  cd [Targeted_Critical_Peak_Pricing]
+  git clone https://github.com/srmadani/Targeted_Critical_Peak_Pricing.git
+  cd Targeted_Critical_Peak_Pricing
 ```
     
 ## Deployment
