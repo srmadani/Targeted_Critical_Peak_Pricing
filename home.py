@@ -144,7 +144,7 @@ class Homes(Env):
             else:
                 done = False
                 self.day += 1
-                L = self.data.query(f"Day == {self.day}").groupby(['Hour'])[f"{self.option}0"].sum().values.astype(float)
+                L = self.data.query(f"Day == {self.day}").groupby(['Hour'])["Load"].sum().values.astype(float)
                 l1, l2, l3 = L[6:9].max(), L[16:20].max(), np.concatenate((L[:6], L[9:16], L[20:])).max()
                 t1, t2 = (self.data.query(f'Day == {self.day}')['T'][6:9].min() - self.t_min)/(self.t_max - self.t_min), (self.data.query(f'Day == {self.day}')['T'][16:20].min() - self.t_min)/(self.t_max - self.t_min)
                 self.state = np.array([l1/1000,l2/1000, l3/1000, t1, t2] + list([self.rh/25]) + [self.peak/((self.rate+1)*1000), self.day/self.H], dtype=np.float32)
@@ -163,16 +163,21 @@ class Homes(Env):
         pass
     
     def reset(self, mode= 'train',scale= True, set_num = 0, dataset_mode = False, year = 2013, month = 1):
-        if dataset_mode:
+        if mode == 'train':
+            self.year, self.month = random.choice(self.train_set)
+        elif mode == 'validation':
+            self.year, self.month = self.validation_set[set_num]
+        elif mode == 'dataset': 
             self.year, self.month = year, month
+        elif mode == 'heuristic':
+            set = self.train_set + self.validation_set + self.test_set
+            self.year, self.month = set[set_num]
+        elif mode == 'test':
+            self.year, self.month = self.test_set[set_num]
+        
+        if mode == 'dataset':
             self.is_neg, self.scale = False, 1
-        else:
-            if mode == 'train':
-                self.year, self.month = random.choice(self.train_set)
-            elif mode == 'validation':
-                self.year, self.month = self.validation_set[set_num]
-            else:
-                self.year, self.month = self.test_set[set_num]
+        else:    
             if scale:
                 self.scale = self.scales[self.rate, self.year, self.month] 
             else:
@@ -196,7 +201,7 @@ class Homes(Env):
         self.LL = np.zeros(self.d['T'])
         self.rh = 25 * np.ones(16) if self.tar else 25
         # Reset state
-        L = self.data.query(f"Day == {self.day}").groupby(['Hour'])[f"{self.option}0"].sum().values.astype(float)
+        L = self.data.query(f"Day == {self.day}").groupby(['Hour'])["Load"].sum().values.astype(float)
         l1, l2, l3 = L[6:9].max(), L[16:20].max(), np.concatenate((L[:6], L[9:16], L[20:])).max()
         t1, t2 = (self.data.query(f'Day == {self.day}')['T'][6:9].min() - self.t_min)/(self.t_max - self.t_min), (self.data.query(f'Day == {self.day}')['T'][16:20].min() - self.t_min)/(self.t_max - self.t_min)
         if self.tar:

@@ -13,23 +13,18 @@ import seaborn as sns
 from itertools import chain, combinations
 import plotly.express as px
 from itertools import product
-import pickle
 
 
-def figs(tar = False, option = 'WCO', rate = 99, save = True, show_df = True, acts= None):
-
-    if acts is None:
-        # acts is in format like: {1:{1:1, 4:1, 7:1}, 10: {2:1, 5:1, 8: 1, 10:1, 11:1, 12:1, 16:3}, 7:{2:2, 8:2, 9:2, 14:2}, 9:{15:3}}
-        with open('datasets/acts_dict.pkl', 'rb') as handle:
-            acts_dict = pickle.load(handle)
-        # Extract the relevant acts based on tar, option, and rate
-        acts = acts_dict.get(tar, {}).get(option, {}).get(rate, {})
+def figs(tar = False, option = 'WCO', rate = 99, acts= {}, save = True, show_df = True):
     env = Homes(tar, option, rate)
     col = 'Day, Hour, Load, Returned_Load'.split(', ')
     df = pd.DataFrame(columns=col)
+    # df['Returned_Load'] *= 10000/(1+rate)
+    # df['Load'] *= 10000/(1+rate)
     done = False
     rws, lds, b40s, svs = [], [], [], []
-    _ = env.reset(mode = 'test', scale = False)
+    # _ = env.reset(mode = 'test', scale = False)
+    _ = env.reset(mode = 'test', scale = False, dataset_mode = True, year = 2017, month = 2)
     year, month = env.year, env.month
     score_ = 0
     LL_ = []
@@ -37,7 +32,8 @@ def figs(tar = False, option = 'WCO', rate = 99, save = True, show_df = True, ac
         _, reward, done, _ = env.step(0)
         score_ += reward
         LL_.append(env.returned_load)
-    _ = env.reset(mode = 'test', scale = False)
+    # _ = env.reset(mode = 'test', scale = False)
+    _ = env.reset(mode = 'test', scale = False, dataset_mode = True, year = 2017, month = 2)
     score, done = 0, False
     while not done:
         if env.day in acts:
@@ -62,10 +58,11 @@ def figs(tar = False, option = 'WCO', rate = 99, save = True, show_df = True, ac
         date_rng = pd.date_range(start=f'{month}/1/{year}', end=f'{month+1}/1/{year}', freq='H')
     df['DateHour'] = date_rng[:-1]
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df['DateHour'], y=df['Load'], name = 'Load (kWh)', line=dict(color='#1f77b4')))
-    fig.add_trace(go.Scatter(x=df['DateHour'], y=df['Returned_Load'], name = 'New Load (kWh)', line=dict(color='#d62728')))
-    fig.add_trace(go.Scatter(x=df['DateHour'], y=[df['Load'].max()]*len(df['DateHour']), name = 'peak load (kW)', line=dict(dash='dash', color='#1f77b4')))
-    fig.add_trace(go.Scatter(x=df['DateHour'], y=[df['Returned_Load'].max()]*len(df['DateHour']), name = 'new peak (kW)', line=dict(dash='dash', color='#d62728')))
+    fig.add_trace(go.Scatter(x=df['DateHour'], y=df['Load'] * 10/(1+rate), name = 'Load (MWh)', line=dict(color='#1f77b4')))
+    fig.add_trace(go.Scatter(x=df['DateHour'], y=df['Returned_Load'] * 10/(1+rate), name = 'New Load (MWh)', line=dict(color='#d62728')))
+    fig.add_trace(go.Scatter(x=df['DateHour'], y=[df['Load'].max() * 10/(1+rate)]*len(df['DateHour']), name = 'peak load (MW)', line=dict(dash='dash', color='#1f77b4')))
+    fig.add_trace(go.Scatter(x=df['DateHour'], y=[df['Returned_Load'].max() * 10/(1+rate)]*len(df['DateHour']), name = 'new peak (MW)', line=dict(dash='dash', color='#d62728')))
+    
     # fig.update_layout(title = f'Prosumer % in market: {np.round(100/(1+rate),3)}%, option: {option}, targeted: {tar}',hovermode='x unified')
     for ii in acts:
         if acts[ii] == 1: #pink
@@ -101,10 +98,10 @@ def figs(tar = False, option = 'WCO', rate = 99, save = True, show_df = True, ac
     # print(f'acts: {acts}')
     # print(f'improve: {np.round(100 * (score-score_)/score_,2)}')
     data = {
-        'Metric': ['rate', 'SQ profit', 'new profit', 'profit increase', 'acts', 'improve'],
+        'Metric': ['rate', 'SQ profit', 'new profit', 'profit increase', 'acts', 'improve', 'peak load saving (kWh)'],
         'Value': [
             f'{np.round(100/(1+rate), 3)}%', score_, score, score - score_, acts,
-            f'{np.round(100 * (score - score_)/np.abs(score_), 2)}%'
+            f'{np.round(100 * (score - score_)/np.abs(score_), 2)}%', (df['Load'].max()-df['Returned_Load'].max())  * 10000 / (1+rate)
         ]
     }
 
@@ -246,7 +243,7 @@ def rev_increase():
 
     # Plotting 'improve' on the left y-axis
     ax1.plot(rates, improve, 'o--', color='blue', label='Profit Increase (%)')
-    ax1.set_xlabel('Rate (%)')
+    ax1.set_xlabel('PPP (%)')
     ax1.set_ylabel('Profit Increase (%)', color='blue')
     # ax1.set_yscale('symlog')
     ax1.tick_params(axis='y', labelcolor='blue')
@@ -268,7 +265,7 @@ def rev_increase():
     # Creating an inset with a zoomed view
     ax_inset = fig.add_axes([0.5, 0.3, 0.35, 0.35])  # Inset position and size
     ax_inset.plot(rates[:10], improve[:10], 'o-', color='green')
-    ax_inset.set_xlabel('Rate (%)')
+    ax_inset.set_xlabel('PPP (%)')
     ax_inset.set_ylabel('Profit Increase (%)')
     ax_inset.set_title('Zoomed View for Smaller Rates')
     ax_inset.grid(True)
@@ -287,7 +284,7 @@ def rev_increase():
 
     # Plotting 'improve' on the left y-axis
     ax1.plot(rates, improve_, 'o--', color='blue', label='Profit Increase (%)')
-    ax1.set_xlabel('Rate (%)')
+    ax1.set_xlabel('PPP (%)')
     ax1.set_ylabel('Profit Increase (%)', color='blue')
     ax1.set_yscale('symlog')
     ax1.tick_params(axis='y', labelcolor='blue')
@@ -309,7 +306,7 @@ def rev_increase():
     # Creating an inset with a zoomed view
     ax_inset = fig.add_axes([0.5, 0.3, 0.35, 0.35])  # Inset position and size
     ax_inset.plot(rates[:10], improve_[:10], 'o-', color='green')
-    ax_inset.set_xlabel('Rate (%)')
+    ax_inset.set_xlabel('PPP (%)')
     ax_inset.set_ylabel('Profit Increase (%)')
     ax_inset.set_title('Zoomed View for Smaller Rates')
     ax_inset.grid(True)
@@ -355,12 +352,12 @@ def pro_savings():
         pro_wco_diff[PV, EV, BAT, DR] = pro_wco_sq[PV, EV, BAT, DR] - pro_wco[PV, EV, BAT, DR]
     
     env = Homes(tar= False, option= 'WCO', rate = 99)
-    done, score, _, rews = False, 0, env.reset(mode='test'), []
+    done, score, _, rews = False, 0, env.reset(mode='test', scale = False), []
     df = env.data.query('Day == 20')[['DateTime', 'PV', 'EV', 'BAT', 'DR', 'Saving1', 'Saving2', 'Saving3']].copy()
     df['DateTime'] = pd.to_datetime(df['DateTime'])
     savings = {}
     for PV_,EV_,BAT_,DR_ in product([False, True], [False, True], [False, True], [False, True]):
-        savings[PV_, EV_, BAT_, DR_] = df.query(f'PV == {PV_} & EV == {EV_} & BAT == {BAT_} & DR == {DR_}')['Saving3'].sum()
+        savings[PV_, EV_, BAT_, DR_] = df.query(f'PV == {PV_} & EV == {EV_} & BAT == {BAT_} & DR == {DR_}')['Saving3'].max()
     savings  
 
     # Create adjusted labels and values for the pie chart
@@ -515,7 +512,7 @@ def profits():
 
     # Setup main axes
     ax.set_title('SQ Profit and New Profit for WCO and FXD')
-    ax.set_xlabel('Rate (%)')
+    ax.set_xlabel('PPP (%)')
     ax.set_ylabel('Profit')
     ax.set_xscale('log')
     ax.set_yscale('symlog')
@@ -562,12 +559,7 @@ import plotly.express as px
 from itertools import product
 
 
-def figs_tar(tar = True, option = 'WCO', rate = 99, show_fig = True, save_fig = False, show_df = True, acts= None):
-    if acts is None:
-        with open('datasets/acts_dict.pkl', 'rb') as handle:
-            acts_dict = pickle.load(handle)
-        # Extract the relevant acts based on tar, option, and rate
-        acts = acts_dict.get(tar, {}).get(option, {}).get(rate, {})
+def figs_tar(tar = True, option = 'WCO', rate = 99, acts= {10: {1:3, 5:3, 12:1, 6:3, 7:3}}, show_fig = True, save_fig = False, show_df = True):
     env = Homes(tar, option, rate)
     col = 'Day, Hour, Load, Returned_Load'.split(', ')
     df = pd.DataFrame(columns=col)
@@ -604,10 +596,10 @@ def figs_tar(tar = True, option = 'WCO', rate = 99, show_fig = True, save_fig = 
             date_rng = pd.date_range(start=f'{month}/1/{year}', end=f'{month+1}/1/{year}', freq='H')
         df['DateHour'] = date_rng[:-1]
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=df['DateHour'], y=df['Load'], name = 'Load (kWh)', line=dict(color='#1f77b4')))
-        fig.add_trace(go.Scatter(x=df['DateHour'], y=df['Returned_Load'], name = 'New Load (kWh)', line=dict(color='#d62728')))
-        fig.add_trace(go.Scatter(x=df['DateHour'], y=[df['Load'].max()]*len(df['DateHour']), name = 'peak load (kW)', line=dict(dash='dash', color='#1f77b4')))
-        fig.add_trace(go.Scatter(x=df['DateHour'], y=[df['Returned_Load'].max()]*len(df['DateHour']), name = 'new peak (kW)', line=dict(dash='dash', color='#d62728')))
+        fig.add_trace(go.Scatter(x=df['DateHour'], y=df['Load'] * 10/(1+rate), name = 'Load (MWh)', line=dict(color='#1f77b4')))
+        fig.add_trace(go.Scatter(x=df['DateHour'], y=df['Returned_Load'] * 10/(1+rate), name = 'New Load (MWh)', line=dict(color='#d62728')))
+        fig.add_trace(go.Scatter(x=df['DateHour'], y=[df['Load'].max() * 10/(1+rate)]*len(df['DateHour']), name = 'peak load (MW)', line=dict(dash='dash', color='#1f77b4')))
+        fig.add_trace(go.Scatter(x=df['DateHour'], y=[df['Returned_Load'].max() * 10/(1+rate)]*len(df['DateHour']), name = 'new peak (MW)', line=dict(dash='dash', color='#d62728')))
         # fig.update_layout(title = f'Prosumer % in market: {np.round(100/(1+rate),3)}%, option: {option}, targeted: {tar}',hovermode='x unified')
         for ii in acts:
             for jj in acts[ii]:
@@ -638,10 +630,10 @@ def figs_tar(tar = True, option = 'WCO', rate = 99, show_fig = True, save_fig = 
         fig.show("notebook")
     if show_df:
         data = {
-            'Metric': ['rate', 'SQ profit', 'new profit', 'revenue increase', 'acts', 'improve'],
+            'Metric': ['rate', 'SQ profit', 'new profit', 'revenue increase', 'acts', 'improve', 'peak load saving (MWh)'],
             'Value': [
                 f'{np.round(100/(1+rate), 3)}%', score_, score, score - score_, acts,
-                f'{np.round(100 * (score - score_)/np.abs(score_), 2)}%'
+                f'{np.round(100 * (score - score_)/np.abs(score_), 2)}%', (df['Load'].max()-df['Returned_Load'].max()) * 10000 / (1+rate)
             ]
         }
 
